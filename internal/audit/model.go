@@ -31,6 +31,7 @@ type Entry struct {
 	SHA256         string
 	Kind           Kind
 	Link           string
+	Flags          uint16
 	Truncated      bool
 }
 
@@ -82,6 +83,7 @@ type Scan struct {
 	ModInfo           ModInfo
 	Findings          []Finding
 	Verdict           Verdict
+	Limits            Limits
 	Aborted           bool
 	AbortCode         string
 }

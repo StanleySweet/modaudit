@@ -85,6 +85,7 @@ func Inventory(ctx context.Context, zipPath string, lim Limits) (*Scan, error) {
 			Size:           int64(zf.UncompressedSize64),
 			CompressedSize: int64(zf.CompressedSize64),
 			Mode:           zf.Mode(),
+			Flags:          zf.Flags,
 		}
 		s.TotalUncompressed += e.Size
 		compressedTotal += e.CompressedSize
