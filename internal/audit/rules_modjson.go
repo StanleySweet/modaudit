@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var modVersionRE = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+var modVersionRE = regexp.MustCompile(`^\d+(\.\d+)*$`)
 
 var knownModJSON = map[string]bool{
 	"name": true, "version": true, "label": true, "description": true,
@@ -71,7 +71,7 @@ func rulesModJSON(s *Scan) {
 		s.AddFinding("MODJSON_MISSING_FIELD", SeverityBlocker, "mod.json", "missing label")
 	}
 	if info.Version != "" && !modVersionRE.MatchString(info.Version) {
-		s.AddFinding("MODJSON_VERSION_FORMAT", SeverityBlocker, "mod.json", "version must be dotted numeric (e.g. 1.2.3)")
+		s.AddFinding("MODJSON_VERSION_FORMAT", SeverityBlocker, "mod.json", "version must be dotted numeric (e.g. 1.2 or 1.2.3)")
 	}
 	if info.IgnoreCompat {
 		s.AddFinding("COMPAT_IGNORE_FLAG", SeverityBlocker, "mod.json", "ignoreInCompatibilityChecks is not allowed")

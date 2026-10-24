@@ -86,7 +86,7 @@ var commentText = map[string]string{
 	"MODJSON_INVALID":        "mod.json is not valid JSON.",
 	"MODJSON_MISSING_FIELD":  "mod.json is missing required fields (name, version, label).",
 	"MODJSON_NAME_MISMATCH":  "mod.json name does not match the mod identifier.",
-	"MODJSON_VERSION_FORMAT": "mod.json version must be dotted numeric (e.g. 1.2.3).",
+	"MODJSON_VERSION_FORMAT": "mod.json version must be dotted numeric (e.g. 1.2 or 1.2.3).",
 	"COMPAT_IGNORE_FLAG":     "ignoreInCompatibilityChecks is not permitted.",
 	"SCRIPT_EVAL":            "Script uses eval/Function/string-based setTimeout.",
 	"SCRIPT_CRASH":           "Script calls Engine.Crash().",

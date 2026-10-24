@@ -44,9 +44,18 @@ func TestModJSONClean(t *testing.T) {
 }
 
 func TestModJSONNumericOnly(t *testing.T) {
-	s := &Scan{ModJSONRaw: []byte(`{"name":"a","version":"1.2","label":"A"}`)}
-	rulesModJSON(s)
-	if !hasCode(s.Findings, "MODJSON_VERSION_FORMAT") {
-		t.Fatal(s.Findings)
+	for _, v := range []string{"1.2", "1.2.3", "10"} {
+		s := &Scan{ModJSONRaw: []byte(`{"name":"a","version":"` + v + `","label":"A"}`)}
+		rulesModJSON(s)
+		if hasCode(s.Findings, "MODJSON_VERSION_FORMAT") {
+			t.Fatalf("%s: %+v", v, s.Findings)
+		}
+	}
+	for _, v := range []string{"1.2-beta", "v1.2", "2024-01-01", "1..2"} {
+		s := &Scan{ModJSONRaw: []byte(`{"name":"a","version":"` + v + `","label":"A"}`)}
+		rulesModJSON(s)
+		if !hasCode(s.Findings, "MODJSON_VERSION_FORMAT") {
+			t.Fatalf("%s: %+v", v, s.Findings)
+		}
 	}
 }
