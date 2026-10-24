@@ -21,7 +21,7 @@ Design: `.docs/design.md`. Decisions: `.docs/decision/`. Plans:
 Branch: `feat/audit-cli`. Ledger: `.superpowers/sdd/01-audit-cli/progress.md`.
 Done: phase 1 (plan 01) complete: rules, verdict, report, capped bundle,
 `modaudit audit` CLI, fuzz tests, README.
-Next: phase 02 signing (`.docs/plan/02-signing.md`, not written yet).
+Next: phase 02 signing, plan `.docs/plan/02-signing.md` (written, awaiting review).
 Build/test: `go build ./...`, `go vet ./...`, `go test ./...`. Golden:
 `go test ./internal/report -run TestGoldenRepackage -update`. Fuzz:
 `go test ./internal/audit -run '^$' -fuzz FuzzRunOnArbitraryBytes -fuzztime 20s`.
