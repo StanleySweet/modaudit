@@ -7,28 +7,17 @@ import (
 
 var compileDirs = []string{"simulation/templates", "simulation/data", "simulation/components"}
 
-func hasBlocker(s *Scan) bool {
-	for _, f := range s.Findings {
-		if f.Severity == SeverityBlocker {
-			return true
-		}
-	}
-	return s.Aborted
-}
-
 func PackagingIssues(s *Scan) bool {
 	if hasBlocker(s) {
 		return false
 	}
 	for _, f := range s.Findings {
-		if stringsHasPrefix(f.Code, "PACKAGE_") || stringsHasPrefix(f.Code, "LAYOUT_") {
+		if strings.HasPrefix(f.Code, "PACKAGE_") || strings.HasPrefix(f.Code, "LAYOUT_") {
 			return true
 		}
 	}
 	return false
 }
-
-func stringsHasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
 
 func rulesPackaging(s *Scan) {
 	if len(s.Entries) == 0 {
@@ -41,6 +30,16 @@ func rulesPackaging(s *Scan) {
 		names[strings.ToLower(norm)] = true
 	}
 
+	wrapper := ""
+	for _, e := range s.Entries {
+		norm, _ := NormalizeName(e.Name)
+		if path.Base(norm) == "mod.json" && norm != "mod.json" {
+			if i := strings.IndexByte(norm, '/'); i > 0 {
+				wrapper = norm[:i+1]
+			}
+		}
+	}
+
 	for _, e := range s.Entries {
 		norm, _ := NormalizeName(e.Name)
 		if strings.ToLower(path.Ext(norm)) != ".xml" {
@@ -50,7 +49,11 @@ func rulesPackaging(s *Scan) {
 		if base == "mod.json" {
 			continue
 		}
-		lc := strings.ToLower(norm)
+		check := norm
+		if wrapper != "" && strings.HasPrefix(norm, wrapper) {
+			check = strings.TrimPrefix(norm, wrapper)
+		}
+		lc := strings.ToLower(check)
 		inCompileDir := false
 		for _, d := range compileDirs {
 			if strings.HasPrefix(lc, strings.ToLower(d)+"/") {

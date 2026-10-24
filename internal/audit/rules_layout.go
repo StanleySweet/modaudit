@@ -17,6 +17,7 @@ var nestedArchiveExts = map[string]bool{".zip": true, ".pyromod": true, ".7z": t
 func rulesLayout(s *Scan) {
 	hasRoot, hasAny := false, false
 	firstSegs := map[string]bool{}
+	var wrapperModJSON string
 
 	for _, e := range s.Entries {
 		norm, _ := NormalizeName(e.Name)
@@ -26,6 +27,9 @@ func rulesLayout(s *Scan) {
 		}
 		if base == "mod.json" {
 			hasAny = true
+			if !hasRoot && wrapperModJSON == "" {
+				wrapperModJSON = e.Name
+			}
 		}
 		if isJunk(norm) {
 			s.AddFinding("LAYOUT_JUNK_FILE", SeverityWarn, e.Name, "OS, editor or VCS file")
@@ -43,7 +47,12 @@ func rulesLayout(s *Scan) {
 
 	if !hasAny {
 		s.AddFinding("LAYOUT_NO_MODJSON", SeverityBlocker, "", "no mod.json anywhere in the archive")
-	} else if !hasRoot {
+	} else if !hasRoot && wrapperModJSON != "" {
+		if len(s.ModJSONRaw) == 0 {
+			if body, err := readLimited(s.Path, wrapperModJSON, maxModJSON); err == nil {
+				s.ModJSONRaw = body
+			}
+		}
 		s.AddFinding("LAYOUT_WRAPPER_DIR", SeverityWarn, "", "mod.json is inside a top-level directory")
 	}
 
