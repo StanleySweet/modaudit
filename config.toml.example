@@ -1,0 +1,21 @@
+# Local settings for modaudit. Secrets are referenced, never inlined.
+manager_url = "https://mod-io-manager.wildfiregames.ovh"
+target_alpha = "0.28.0"
+key_dir = ""
+pyrogenesis = ""
+archivebuild_flags = []
+
+# Manager API key: a 0600 file or a command, not the key itself.
+api_key_file = ""
+api_key_cmd = ""
+# Command that prints the minisign key password, e.g. keepassxc-cli show -a Password db.kdbx entry.
+vault_cmd = ""
+
+[limits]
+max_entries = 10000
+max_uncompressed = 2147483648
+max_ratio = 100
+max_file_size = 67108864
+max_script_bytes = 2097152
+max_bundle_bytes = 204800
+max_bundle_files = 50
