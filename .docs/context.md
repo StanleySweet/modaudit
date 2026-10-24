@@ -16,6 +16,14 @@ Design: `.docs/design.md`. Decisions: `.docs/decision/`. Plans:
 `.docs/plan/01-audit-cli.md` (phase 1); later phases 02 signing, 03 manager,
 04 repackage/publish, 05 skill/eval.
 
+## Current state (2026-10-24)
+
+Branch: `feat/audit-cli`. Ledger: `.superpowers/sdd/01-audit-cli/progress.md`.
+Done: config, inventory, archive/layout/modjson/script/asset/packaging rules,
+scan orchestration + verdict, report + comment bullets.
+Next: LLM bundle (task 11), `modaudit audit` CLI (12), fuzz/vet/docs (13).
+Build/test: `go build ./...`, `go test ./...`. No network/signing/LLM.
+
 ## Hard rules
 
 - Never sign bytes different from the bytes distributed.
