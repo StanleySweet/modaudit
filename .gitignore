@@ -1,0 +1,8 @@
+/.ref/
+/0ad.wiki/
+/.superpowers/
+/modaudit
+*.test
+/report.json
+/bundle.json
+/config.toml

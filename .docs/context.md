@@ -1,0 +1,64 @@
+# Context
+
+Dense project context. Read this before exploring. Keeps token use low.
+
+## What this is
+
+Cross-platform audit + signing tool for 0 A.D. mods on mod.io.
+
+- Manager (hosted, OVH): control plane. Holds mod.io OAuth token, queue, audit
+  records, comment drafts, signature records, uploads.
+- Go CLI (signer machine): data plane. `queue`, `fetch`, `audit`, `repackage`,
+  `sign`, `submit`. Holds revocable manager API key only.
+- OpenCode skill: LLM judgement over a compact bundle. Never signs, never posts.
+
+Design: `.docs/design.md`. Decisions: `.docs/decision/`. Plans:
+`.docs/plan/01-audit-cli.md` (phase 1); later phases 02 signing, 03 manager,
+04 repackage/publish, 05 skill/eval.
+
+## Hard rules
+
+- Never sign bytes different from the bytes distributed.
+- Repackage only `REPACKAGE` verdicts (validated but unpackaged). Never fix
+  unsafe, broken or compatibility-violating mods.
+- Repackage requires human yes, a patch bump in `mod.json` version, re-audit and
+  sign of the rebuilt zip.
+- Deterministic blockers cannot be cleared by the LLM.
+- Comments are queued drafts; a human approves; manager posts.
+- Signing requires an interactive terminal. No `--yes`.
+- OAuth token never leaves the manager. Signing key never on the server.
+
+## Verdicts
+
+`SIGN` | `REPACKAGE` | `REFUSE` | `NEEDS_HUMAN`
+
+## Facts that shaped it
+
+- mod.io Edit Modfile accepts only `changelog`, `version`, `active`; a new
+  signature means a new modfile upload (`POST /files`).
+- Signature blob: `{"dependencies":["0ad=<alpha>"],"minisigs":["<text>"]}`.
+- `dependencies` comes from the signing key alpha (`minisign-0.28.0.pem` →
+  `0ad=0.28.0`). `mod.json` has the *mod* version, no engine tag.
+- Packaging = pyrogenesis `-archivebuild-compress` (xml→xmb, png→dds, dae→pmd).
+- Known bug: some mods ship `.xml` without the `.xmb`; absence of compiled
+  counterpart is the packaging signal.
+- Keys: `~/Library/CloudStorage/OneDrive-Personnel/certificates/sign/keys/*.pem`,
+  all password-encrypted. Script: `.../sign/minisign.py`.
+- Go minisign: `aead.dev/minisign` (MIT, pure Go, streams, decrypts keys).
+
+## References
+
+- `0ad.wiki/Mod_Verification_Process.md` — audit steps, blob format, compat flag.
+- `0ad.wiki/Mod_Publishing_Process.md` — signature guarantee, mod.json mistakes.
+- `0ad.wiki/ReleaseProcess.md` — per-alpha key generation.
+- `.ref/0ad-community-mod/scripts/modio.py` — real upload path.
+- `.ref/0ad-community-mod/.gitea/workflows/jobs.yml` — build → sign → upload.
+- `.ref/gh-action-build-pyromod/entrypoint.sh` — archivebuild invocation.
+- `../modio-manager/backend/src/plugins/mods.ts` — existing endpoints.
+- `../modio-manager/backend/src/services/modioSync.ts` — signature detection.
+
+## Do not
+
+- Run pyrogenesis on content that has not passed the deterministic audit.
+- Read or echo the OAuth token.
+- Touch clones in `../planned-updates`.
