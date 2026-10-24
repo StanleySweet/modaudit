@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "slug": "mymod",
+  "zip_sha256": "84d01bc84be89d1100b974e7c7eab6500760fc41667a7d3520401eaea8b0a9f9",
+  "verdict": "REPACKAGE",
+  "mod_json": {
+    "name": "mymod",
+    "version": "1.0.0",
+    "label": "My Mod"
+  },
+  "findings": [
+    {
+      "code": "LAYOUT_JUNK_FILE",
+      "severity": "warn",
+      "file": "MyMod/.DS_Store",
+      "detail": "OS, editor or VCS file"
+    },
+    {
+      "code": "LAYOUT_WRAPPER_DIR",
+      "severity": "warn",
+      "detail": "mod.json is inside a top-level directory"
+    },
+    {
+      "code": "PACKAGE_MISSING_XMB",
+      "severity": "warn",
+      "file": "MyMod/simulation/templates/a.xml",
+      "detail": "simulation template XML has no compiled .xmb counterpart"
+    }
+  ],
+  "entries": [
+    {
+      "name": "MyMod/mod.json",
+      "size": 51,
+      "compressed_size": 57,
+      "mode": 438,
+      "sha256": "e656626c91724a66246c23387db602c07c32669fbdc6fb6fbcb16ac726e34e1b",
+      "kind": "json",
+      "flags": 8
+    },
+    {
+      "name": "MyMod/simulation/templates/a.xml",
+      "size": 7,
+      "compressed_size": 13,
+      "mode": 438,
+      "sha256": "6238462c4873df4c50bc1a901ece576b2d166b0156802c88a05a85b1f5d511c7",
+      "kind": "xml",
+      "flags": 8
+    },
+    {
+      "name": "MyMod/.DS_Store",
+      "size": 4,
+      "compressed_size": 10,
+      "mode": 438,
+      "sha256": "ef875a1705a5fdac206be996f4dc1f726ea6b68861eb741c37def7277f179e37",
+      "kind": "other",
+      "flags": 8
+    }
+  ],
+  "stats": {
+    "files": 3,
+    "total_bytes": 62,
+    "javascript_bytes": 0,
+    "xml_bytes": 7
+  },
+  "manifest": {
+    "MyMod/.DS_Store": "ef875a1705a5fdac206be996f4dc1f726ea6b68861eb741c37def7277f179e37",
+    "MyMod/mod.json": "e656626c91724a66246c23387db602c07c32669fbdc6fb6fbcb16ac726e34e1b",
+    "MyMod/simulation/templates/a.xml": "6238462c4873df4c50bc1a901ece576b2d166b0156802c88a05a85b1f5d511c7"
+  }
+}

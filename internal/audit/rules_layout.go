@@ -56,7 +56,7 @@ func rulesLayout(s *Scan) {
 		s.AddFinding("LAYOUT_WRAPPER_DIR", SeverityWarn, "", "mod.json is inside a top-level directory")
 	}
 
-	if !hasRoot && len(firstSegs) == 1 {
+	if !hasRoot && wrapperModJSON == "" && len(firstSegs) == 1 {
 		for seg := range firstSegs {
 			if seg != "mod.json" {
 				s.AddFinding("LAYOUT_WRAPPER_DIR", SeverityWarn, seg+"/", "single top-level directory")

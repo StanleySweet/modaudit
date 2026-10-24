@@ -24,15 +24,15 @@ const (
 
 // Entry is one file in the archive. Content is never retained.
 type Entry struct {
-	Name           string
-	Size           int64
-	CompressedSize int64
-	Mode           fs.FileMode
-	SHA256         string
-	Kind           Kind
-	Link           string
-	Flags          uint16
-	Truncated      bool
+	Name           string      `json:"name"`
+	Size           int64       `json:"size"`
+	CompressedSize int64       `json:"compressed_size"`
+	Mode           fs.FileMode `json:"mode"`
+	SHA256         string      `json:"sha256"`
+	Kind           Kind        `json:"kind"`
+	Link           string      `json:"link,omitempty"`
+	Flags          uint16      `json:"flags"`
+	Truncated      bool        `json:"truncated,omitempty"`
 }
 
 // Severity grades a finding. Only SeverityBlocker forces REFUSE.
