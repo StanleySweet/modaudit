@@ -18,6 +18,7 @@ const usage = `usage: modaudit <command> [flags]
 
 commands:
   audit   audit a mod zip and write a report
+  sign    sign an audited zip
 `
 
 var exitCodes = map[audit.Verdict]int{
@@ -44,6 +45,8 @@ func run(args []string) int {
 			return 1
 		}
 		return code
+	case "sign":
+		return runSign(args[1:], signDeps{})
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], usage)
 		return 1
