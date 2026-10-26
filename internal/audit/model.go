@@ -86,6 +86,7 @@ type Scan struct {
 	Limits            Limits
 	Aborted           bool
 	AbortCode         string
+	TargetAlpha       string
 }
 
 // AddFinding appends a finding.

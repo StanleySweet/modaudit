@@ -6,9 +6,10 @@ import (
 
 // Options control a full scan.
 type Options struct {
-	Slug     string
-	Limits   Limits
-	Baseline map[string]string
+	Slug        string
+	Limits      Limits
+	Baseline    map[string]string
+	TargetAlpha string
 }
 
 // Run inventories the zip and applies all rules in order.
@@ -20,6 +21,7 @@ func Run(ctx context.Context, zipPath string, opts Options) (*Scan, error) {
 	}
 	s.Slug = opts.Slug
 	s.Limits = lim
+	s.TargetAlpha = opts.TargetAlpha
 	if s.Aborted {
 		s.Verdict = VerdictRefuse
 		return s, nil

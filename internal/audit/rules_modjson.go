@@ -81,4 +81,10 @@ func rulesModJSON(s *Scan) {
 			s.AddFinding("MODJSON_NAME_MISMATCH", SeverityWarn, "mod.json", "name does not match queue slug")
 		}
 	}
+	// engine dependency check
+	if s.TargetAlpha != "" {
+		if !EngineAdmits(info.Dependencies, s.TargetAlpha) {
+			s.AddFinding("MODJSON_ENGINE_MISMATCH", SeverityBlocker, "mod.json", "engine dependency does not admit target alpha")
+		}
+	}
 }
