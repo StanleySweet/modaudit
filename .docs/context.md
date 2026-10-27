@@ -35,7 +35,7 @@ No network/signing/LLM.
 - Repackage requires human yes, a patch bump in `mod.json` version, re-audit and
   sign of the rebuilt zip.
 - Deterministic blockers cannot be cleared by the LLM.
-- Comments are queued drafts; a human approves; manager posts.
+- Comments are drafts; a human approves (`modaudit review`); manager posts.
 - Signing requires an interactive terminal. No `--yes`.
 - OAuth token never leaves the manager. Signing key never on the server.
 
@@ -45,11 +45,14 @@ No network/signing/LLM.
 
 ## Facts that shaped it
 
-- mod.io Edit Modfile accepts only `changelog`, `version`, `active`; a new
-  signature means a new modfile upload (`POST /files`).
-- Signature blob: `{"dependencies":["0ad=<alpha>"],"minisigs":["<text>"]}`.
-- `dependencies` comes from the signing key alpha (`minisign-0.28.0.pem` →
-  `0ad=0.28.0`). `mod.json` has the *mod* version, no engine tag.
+- mod.io Edit Modfile accepts `metadata_blob`: `SIGN` sets the blob on the
+  existing modfile; only `REPACKAGE` uploads a new file (`POST /files`). ADR 0014.
+- Signature blob: `{"dependencies":[<mod.json deps>],"minisigs":["<text>", ...]}`.
+  One signature per alpha key; engine picks the entry whose key number matches
+  its public key, needs `ED`, and fails on any malformed earlier entry
+  (`ModIo.cpp` `ParseSignature`). `dependencies` is display only. ADR 0013.
+- Per-alpha mod public keys: `modio.public_key` in engine `default.cfg` at each
+  release tag (a23 … v0.28.0). Most mods: current alpha only; some cross-alpha.
 - Packaging = pyrogenesis `-archivebuild-compress` (xml→xmb, png→dds, dae→pmd).
 - Known bug: some mods ship `.xml` without the `.xmb`; absence of compiled
   counterpart is the packaging signal.

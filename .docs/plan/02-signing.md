@@ -2,20 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship `modaudit sign --report report.json --zip mod.zip`: sign exactly the audited bytes with the per-alpha encrypted minisign key, after an interactive exact-token confirmation, verify locally, and write `<zip>.minisig` plus the `metadata_blob` JSON. No network, no manager, no LLM.
+**Goal:** Ship `modaudit sign --report report.json --zip mod.zip [--merge-blob FILE]`: sign exactly the audited bytes with the per-alpha encrypted minisign key, after an interactive exact-token confirmation, verify locally, and write `<zip>.minisig` plus the `metadata_blob` JSON: one signature for `target_alpha` by default, or merged into an existing cross-alpha blob. No network, no manager, no LLM.
 
-**Architecture:** Four new packages behind one command. `internal/keys` finds `minisign-<alpha>.pem` in `key_dir` and selects by exact alpha. `internal/approval` owns the terminal (`/dev/tty`, `CONIN$`): no-echo password, exact-token confirm, refusal when there is no terminal. `internal/signer` streams the zip once through `minisign.NewReader` and SHA-256 together, refuses on hash mismatch, verifies with the key's own public half, and builds the blob. `cmd/modaudit` wires `sign` with preconditions from the phase 1 report and config.
+**Architecture:** Five new packages behind one command. `internal/trust` is the committed per-alpha public-key table (from engine release tags). `internal/keys` finds `minisign-<alpha>.pem` in `key_dir` and selects by exact alpha. `internal/approval` owns the terminal (`/dev/tty`, `CONIN$`): no-echo password, exact-token confirm, refusal when there is no terminal. `internal/signer` streams the zip once through `minisign.NewReader` and SHA-256 together, refuses on hash mismatch, verifies with the key's own public half. `internal/blob` parses, validates (in engine order) and merges `metadata_blob` JSON. `cmd/modaudit` wires `sign` with preconditions from the phase 1 report and config.
 
 **Tech Stack:** Go 1.26, `aead.dev/minisign` v0.3.0 (pinned, ADR 0003), `golang.org/x/term`, phase 1 packages.
 
-**Spec:** `.docs/design.md` §12, §13 (blob only), §16, §17. Decisions: `.docs/decision/0003`, `0008`, `0010`, `0012`.
+**Spec:** `.docs/design.md` §12, §13 (blob only), §16, §17. Decisions: `.docs/decision/0003`, `0008`, `0012`, `0013` (supersedes `0010`).
 
 ## Global Constraints
 
 - Never sign bytes different from the bytes audited: the SHA-256 is computed over the same stream that is signed, then compared with `report.zip_sha256` before anything is written.
 - Only reports with verdict `SIGN` are signable. `REPACKAGE` zips are rebuilt and re-audited in phase 04; the rebuilt zip's own `SIGN` report is what gets signed.
 - Alpha authority: `config.toml` `target_alpha` picks the key; `--alpha` only asserts and refuses on mismatch. Never select a key by sorting filenames. `minisign-releases.pem` is never a mod key.
-- Blob `dependencies` is `["0ad=<alpha>"]` from the key, never from `mod.json` (ADR 0010).
+- Blob `dependencies` is the report's `mod_json.dependencies`, verbatim (ADR 0013). A `mod.json` engine dependency (`0ad<op><version>`) must admit every alpha the blob serves, using the engine's `CompareVersionStrings` semantics (`source/ps/Mod.cpp`); bare `0ad` admits all.
+- Key binding: after decryption the key's public half must equal the `internal/trust` key for `target_alpha`. A key file named for one alpha but holding another refuses.
+- Every blob entry written is valid in engine order (`ModIo.cpp` `ParseSignature`): ≥ 4 lines, `untrusted comment: ` / `trusted comment: ` prefixes, 74-byte base64 signature, `ED`, key number in the trust store, verifies against the exact bytes. One bad entry hides the mod from every alpha.
+- Merge keeps an existing entry only if it verifies against these bytes with its trust-store key; the same-key entry is replaced; anything else refuses the merge (new bytes never inherit old signatures).
 - Password: terminal prompt without echo, or `vault_cmd` / `--password-cmd`. Never from environment variables, never printed, never written to disk, never in an error message.
 - Approval: exact token typed on the controlling terminal. No `--yes`. No terminal → refuse. Stdin redirection must not satisfy the prompt.
 - Decrypted key lives in memory only; no temp key file, no FIFO, no external `minisign` binary at runtime.
@@ -31,6 +34,8 @@
 - The password must not appear in errors from `DecryptKey`, `vault_cmd` failures, or panics.
 - A `.minisig` produced here must verify with C `minisign -Vm` and the alpha's public key; a C-produced signature must verify here.
 - The blob signature text: `\r` removed, trailing newline trimmed, as `minisign.py` and the manager expect.
+- Merging into the linux-libertine-style blob (a23b…a27 entries) for 0.28.0 keeps all five old entries when the bytes are unchanged, and refuses when the zip differs.
+- `mod.json` `"0ad=0.0.27"` signed for `0.28.0` must refuse: the engine would not load it.
 
 ## Phase Roadmap
 
@@ -46,27 +51,42 @@
 
 - Real key dir holds `minisign-0.0.23.pem` … `minisign-0.0.27.pem`, `minisign-0.28.0.pem`, `minisign-releases.pem`, `Readme.MD`. Despite the `.pem` suffix these are minisign encrypted secret keys, not PEM.
 - `minisign.py` selects by menu over sorted versions and builds the blob with `text.replace("\r", "").rstrip("\n")`; it writes `<name>.minisig`. The community-mod workflow writes `<name>.zip.minisign` with C minisign 0.11.
+- Engine `ModIo.cpp` `ParseSignature`: iterate `minisigs`, `continue` on key-number mismatch, `FAIL` (whole mod) on malformed entries met first; requires `ED`. Blob `dependencies` is display only (`gui/modio/modio.js`).
+- Mod public keys per release tag (`binaries/data/config/default.cfg` `public_key`): a23 `RWQBhIRg+dOifTWlwgYHe8RfD8bqoDh1cCvygboAl3GOUKiCo0NlF4fw`, a23b `RWTsHxQMrRq4xwHisyBa2rNQfAedcINzbTT83jeX4/ZcfVxqLfWB4y8w`, a24 `RWRcbM/EwV7bucTiQVCcRBhCkYkXmJEO7s4ktyufkB+gW/NxHhOZ38xh`, a25/a25b `RWTVElEmCfAMGk/jtMc2I9/ElBvoJituKdbDWqqj6D69qz2cKexU4gv+`, a26 `RWQa4XiSn+BLxIYXNrXyz68wwTGWyZ7+kxDtZuLHBXkCtt+lLB8VnpdM`, a27/a27.1 `RWQv2alKl8D0zMDJR766jpYvPy4u3y77HL/iKb/lsT1Fnf6ezoMb2x8+`, v0.28.0 `RWRoZZuNzi1wX+Hs5NKAf+GghHwye3mFePfBzOFt3mqYUZAkqAvs69W2`.
+- Real cross-alpha blob (linux-libertine) has `dependencies: ["0ad"]` and five entries (a23b…a27 keys, one with a trailing `\n`); C trusted comments are `timestamp:<unix>\tfile:<name>[\thashed]`.
 - `aead.dev/minisign` v0.3.0 API: `DecryptKey(password, raw)`, `IsEncrypted`, `NewReader(r)`, `(*Reader).SignWithComments(key, trusted, untrusted) []byte`, `(*Reader).Verify(pub, sig) bool`, `PrivateKey.Public()`, `PrivateKey.ID()`, `Signature.UnmarshalText`.
 
 ---
 
-### Task 1: Dependencies and config
+### Task 1: Dependencies
 
 **Files:**
-- Modify: `go.mod`, `go.sum`, `config.toml.example`
-- Modify: `internal/config/config.go`, `internal/config/config_test.go`
+- Modify: `go.mod`, `go.sum`
 
 **Interfaces:**
-- Produces: `config.Config.Auditor string` (`toml:"auditor"`). Existing `KeyDir`, `TargetAlpha`, `VaultCmd` are consumed as is.
+- Consumes: existing `KeyDir`, `TargetAlpha`, `VaultCmd`; no new config keys.
 
-- [ ] **Step 1:** Test that `auditor = "stan"` loads and that a missing `auditor` leaves it empty.
-- [ ] **Step 2:** Add the field and the example key (`auditor = ""  # name in the trusted comment`).
-- [ ] **Step 3:** `go get aead.dev/minisign@v0.3.0 golang.org/x/term@latest && go mod tidy`. Check `go.mod` pins exact versions.
-- [ ] **Step 4:** `go test ./...` → PASS. Commit `feat: signing dependencies and auditor config`.
+- [ ] **Step 1:** `go get aead.dev/minisign@v0.3.0 golang.org/x/term@latest && go mod tidy`. Check `go.mod` pins exact versions.
+- [ ] **Step 2:** `go test ./...` → PASS. Commit `chore: signing dependencies`.
 
 ---
 
-### Task 2: Key discovery
+### Task 2: Trust store
+
+**Files:**
+- Create: `internal/trust/trust.go`, `internal/trust/trust_test.go`
+
+**Interfaces:**
+- Produces: `trust.Key{Alphas []string; Public minisign.PublicKey}`, `trust.ForAlpha(alpha string) (minisign.PublicKey, bool)`, `trust.ByID(id uint64) (trust.Key, bool)`.
+
+Table from "Facts checked" above. Alpha spellings as the engine reports them and as key files are named: `0.0.23` (a23 and a23b keys both listed; key-number lookup disambiguates), `0.0.24` … `0.0.27`, `0.28.0`. Comment each entry with its source tag.
+
+- [ ] **Step 1:** Tests: every key parses; `ForAlpha("0.28.0")` ID equals the ID in `RWRoZZ…`; the six linux-libertine signature key numbers resolve via `ByID`; unknown alpha → false.
+- [ ] **Step 2:** Implement. **Step 3:** PASS. Commit `feat: per-alpha public key trust store`.
+
+---
+
+### Task 3: Key discovery
 
 **Files:**
 - Create: `internal/keys/keys.go`, `internal/keys/keys_test.go`
@@ -95,7 +115,7 @@ Also: `Discover` returns keys sorted by name for display only; an alpha must mat
 
 ---
 
-### Task 3: Terminal approval
+### Task 4: Terminal approval
 
 **Files:**
 - Create: `internal/approval/approval.go`, `internal/approval/tty_unix.go`, `internal/approval/tty_windows.go`, `internal/approval/approval_test.go`
@@ -112,7 +132,7 @@ Also: `Discover` returns keys sorted by name for display only; an alpha must mat
 
 ---
 
-### Task 4: Password source
+### Task 5: Password source
 
 **Files:**
 - Create: `internal/approval/password.go`, `internal/approval/password_test.go`
@@ -127,17 +147,17 @@ Empty `cmd` → `t.ReadPassword("Password for <keyName>: ")`. Otherwise split `c
 
 ---
 
-### Task 5: Signer and blob
+### Task 6: Signer
 
 **Files:**
 - Create: `internal/signer/signer.go`, `internal/signer/signer_test.go`
 
 **Interfaces:**
-- Produces: `signer.Request{ZipPath, WantSHA256, Alpha, Auditor string; Key minisign.PrivateKey}`.
+- Produces: `signer.Request{ZipPath, WantSHA256, Alpha string; Key minisign.PrivateKey}`.
 - Produces: `signer.Result{Signature []byte; SHA256 string; KeyID uint64}`.
-- Produces: `signer.Sign(req Request) (Result, error)`, `signer.ErrHashMismatch`, `signer.Blob(alpha string, sig []byte) ([]byte, error)`.
+- Produces: `signer.Sign(req Request) (Result, error)`, `signer.ErrHashMismatch`, `signer.ErrWrongKey`.
 
-`Sign`: open the zip, `io.TeeReader` into SHA-256, wrap with `minisign.NewReader`, `io.Copy(io.Discard, r)`; compare the hex digest with `WantSHA256` (case-insensitive) → `ErrHashMismatch` before returning any signature. Trusted comment: `file:<base name> sha256:<hex> 0ad=<alpha> auditor:<auditor>`. Untrusted comment: `signature from modaudit secret key`. Then re-open the file and verify with `minisign.NewReader(...).Verify(key.Public().(minisign.PublicKey), sig)`; failure is an error (catches a file changed after the first read). `Blob` returns `{"dependencies":["0ad=<alpha>"],"minisigs":["<sig without \r, trailing \n trimmed>"]}` with two-space indent.
+`Sign`: open the zip, `io.TeeReader` into SHA-256, wrap with `minisign.NewReader`, `io.Copy(io.Discard, r)`; compare the hex digest with `WantSHA256` (case-insensitive) → `ErrHashMismatch` before returning any signature. Before reading, require `key.Public()` to equal `trust.ForAlpha(Alpha)` → else `ErrWrongKey`. Trusted comment matches C minisign so all blob entries look alike: `timestamp:<unix>\tfile:<base name>\thashed`. Untrusted comment: `signature from minisign secret key`. The auditor is recorded by the manager (phase 03), not in the signature. Then re-open the file and verify with `minisign.NewReader(...).Verify(key.Public().(minisign.PublicKey), sig)`; failure is an error (catches a file changed after the first read).
 
 - [ ] **Step 1: Write the failing tests** with an ephemeral key from `minisign.GenerateKey(rand.Reader)`:
 
@@ -146,7 +166,7 @@ func TestSignVerifiesAndRefusesMismatch(t *testing.T) {
     pub, priv, _ := minisign.GenerateKey(rand.Reader)
     p := filepath.Join(t.TempDir(), "m.zip"); os.WriteFile(p, []byte("zip bytes"), 0o600)
     sum := sha256.Sum256([]byte("zip bytes"))
-    res, err := signer.Sign(signer.Request{ZipPath: p, WantSHA256: hex.EncodeToString(sum[:]), Alpha: "0.28.0", Auditor: "t", Key: priv})
+    res, err := signer.Sign(signer.Request{ZipPath: p, WantSHA256: hex.EncodeToString(sum[:]), Alpha: "0.28.0", Key: priv})
     if err != nil { t.Fatal(err) }
     if !minisign.Verify(pub, []byte("zip bytes"), res.Signature) { t.Fatal("does not verify") }
     if _, err := signer.Sign(signer.Request{ZipPath: p, WantSHA256: strings.Repeat("0", 64), Alpha: "0.28.0", Key: priv}); !errors.Is(err, signer.ErrHashMismatch) {
@@ -155,13 +175,45 @@ func TestSignVerifiesAndRefusesMismatch(t *testing.T) {
 }
 ```
 
-Also: signature text second line starts with `RU` (prehashed `ED`); trusted comment contains `0ad=0.28.0`; `Blob` output decodes to the exact struct and contains no `\r`.
+Also: signature text second line starts with `RU` (prehashed `ED`); trusted comment ends with `\thashed`; a key whose public half is not the trust-store key for `Alpha` → `ErrWrongKey` (tests swap in a test trust table via an unexported hook).
 
-- [ ] **Step 2:** Run, confirm failure. **Step 3:** Implement. **Step 4:** PASS. Commit `feat: stream signing with hash check and blob`.
+- [ ] **Step 2:** Run, confirm failure. **Step 3:** Implement. **Step 4:** PASS. Commit `feat: stream signing with hash and key checks`.
 
 ---
 
-### Task 6: C minisign cross-check
+### Task 7: Blob parse, validate, merge
+
+**Files:**
+- Create: `internal/blob/blob.go`, `internal/blob/blob_test.go`, `internal/blob/testdata/linux-libertine.json`
+
+**Interfaces:**
+- Produces: `blob.Blob{Dependencies []string; Minisigs []string}` (JSON `dependencies`, `minisigs`).
+- Produces: `blob.Parse([]byte) (Blob, error)`, `blob.Validate(b Blob, zipPath string) ([]blob.Entry, error)` with `blob.Entry{KeyID uint64; Alphas []string}`, `blob.Merge(old Blob, deps []string, sig []byte, zipPath string) (Blob, error)`, `blob.Marshal(Blob) ([]byte, error)`.
+
+`Validate` mirrors `ParseSignature` per entry (≥ 4 `\n`-split lines, prefixes, 74-byte base64 line 2, `ED`), then requires a trust-store key and a successful `minisign` verification against the zip bytes; duplicate key numbers are an error. `Merge` normalises the new signature (drop `\r`, trim trailing `\n`), replaces the same-key entry or appends, keeps other entries only when `Validate` passes for them, and sets `Dependencies = deps`. Without `--merge-blob` the CLI calls `Merge(Blob{}, deps, sig, zip)`. `Marshal` uses two-space indent.
+
+- [ ] **Step 1:** Tests: the linux-libertine fixture parses and every entry resolves to a trust-store key (structure only: the zip is not available, so `Validate` is exercised with ephemeral keys through the test trust hook); merge replaces same-key entry, appends a new one, refuses when an old entry does not verify against the bytes, refuses a malformed entry; output has no `\r`.
+- [ ] **Step 2:** Implement. **Step 3:** PASS. Commit `feat: metadata blob validate and merge`.
+
+---
+
+### Task 9: Engine dependency rule
+
+**Files:**
+- Create: `internal/audit/enginever.go`, `internal/audit/enginever_test.go`
+- Modify: `internal/audit/scan.go`, `internal/audit/rules_modjson.go`, `internal/report/report.go`, `cmd/modaudit/main.go`
+
+**Interfaces:**
+- Produces: `audit.EngineAdmits(deps []string, alpha string) bool`; `audit.Options.TargetAlpha string`; rule code `MODJSON_ENGINE_MISMATCH` (blocker) with comment text.
+
+Port `Mod::CompareVersionStrings` exactly (split on `-,_`, keep the first part, split on `.`, integer compare over the shorter length, then length rule). Operators checked in engine order `<=`, `>=`, `=`, `<`, `>`; first found wins. Only entries whose name before the operator is `0ad` are checked; bare `0ad` admits. `audit` passes `config.target_alpha`; empty alpha skips the rule. `sign` re-checks every alpha in the merged blob.
+
+- [ ] **Step 1:** Table tests from the engine: `0.0.25 <= 0.0.24` false, `0.28.0 >= 0.0.27` true, `0.28.0 = 0.28` false, `0.0.27 = 0.0.27` true, bare `0ad` true.
+- [ ] **Step 2:** Implement and wire. Regenerate the golden report only if it changes. **Step 3:** PASS. Commit `feat: engine dependency compatibility rule`.
+
+---
+
+### Task 10: C minisign cross-check
 
 **Files:**
 - Create: `internal/signer/compat_test.go`
@@ -170,34 +222,36 @@ Skips unless `minisign` is on `PATH` (CI installs 0.11 like the community-mod wo
 
 - [ ] **Step 1:** Go → C: generate an ephemeral key, write the public key with `MarshalText`, sign a temp file with `signer.Sign`, run `minisign -Vm <file> -p <pub>` → exit 0.
 - [ ] **Step 2:** C → Go: `minisign -G -W -p pub -s sec` (unencrypted, temp dir), `minisign -S -s sec -m file`, parse `sec` via `minisign.PrivateKey.UnmarshalText` is not needed; verify the `.minisig` with `minisign.PublicKeyFromFile` + `Reader.Verify`.
-- [ ] **Step 3:** Encrypted-key path: `minisign -G -p pub -s sec` fed a password through a pty is out of scope for CI; instead Task 8 adds a manual real-key smoke test.
+- [ ] **Step 3:** Encrypted-key path: `minisign -G -p pub -s sec` fed a password through a pty is out of scope for CI; instead Task 12 adds a manual real-key smoke test.
 - [ ] **Step 4:** Commit `test: cross-check signatures with C minisign`.
 
 ---
 
-### Task 7: `modaudit sign` command
+### Task 11: `modaudit sign` command
 
 **Files:**
 - Modify: `cmd/modaudit/main.go`, `cmd/modaudit/main_test.go`
 - Create: `cmd/modaudit/sign.go`
 
 **Interfaces:**
-- Produces: `modaudit sign --report FILE --zip FILE [--alpha A] [--password-cmd CMD] [--out-dir DIR] [--config FILE]`.
+- Produces: `modaudit sign --report FILE --zip FILE [--alpha A] [--merge-blob FILE] [--password-cmd CMD] [--out-dir DIR] [--config FILE]`.
 - Internal seam: `signDeps{openTerminal func() (approval.Terminal, error)}` so tests inject a fake terminal; `main` uses `approval.Open`.
 
 Order is fixed, and nothing touching the key happens before step 5:
 
-1. Load config (same resolution as `audit`). Require `key_dir`, `target_alpha`, `auditor`.
+1. Load config (same resolution as `audit`). Require `key_dir`, `target_alpha`; `target_alpha` must be in `internal/trust`.
 2. Read the report; require `schema_version == 1` and `verdict == "SIGN"` → else exit 2.
 3. Hash the zip; require equality with `report.zip_sha256` → else exit 2. (Cheap early refusal; `signer.Sign` re-checks on the signed stream.)
-4. `--alpha`, if given, must equal `target_alpha` → else exit 2. `keys.Select(key_dir, target_alpha)` → `ErrNoKey` exits 2.
-5. `approval.Open()` → `ErrNoTerminal` exits 2. Print summary: slug, `mod.json` name/version, zip path, SHA-256, alpha, key file, auditor. Token: first 12 hex of the SHA-256. `Confirm` false → exit 3.
+4. `--alpha`, if given, must equal `target_alpha` → else exit 2. `keys.Select(key_dir, target_alpha)` → `ErrNoKey` exits 2. `--merge-blob`, if given: `blob.Validate` against the zip now (before any prompt) → failure exits 2. `audit.EngineAdmits(mod_json.dependencies, a)` for `target_alpha` and every alpha already in the blob → else exit 2.
+5. `approval.Open()` → `ErrNoTerminal` exits 2. Print summary: slug, `mod.json` name/version/dependencies, zip path, SHA-256, alpha, key file, alphas already in the merge blob. Token: first 12 hex of the SHA-256. `Confirm` false → exit 3.
 6. Password (`--password-cmd`, else `vault_cmd`, else prompt). Read the key file, `minisign.DecryptKey`; on error print `cannot decrypt <key file>` (no password, no library message) and exit 1. Zero the password slice after use.
-7. `signer.Sign`; write `<out-dir>/<zip base>.minisig` (0644) and `<out-dir>/<zip base>.blob.json` (0644). Default `--out-dir` is the zip's directory. Refuse to overwrite an existing `.minisig` (exit 1).
+7. `signer.Sign` (`ErrWrongKey` exits 2); `blob.Merge`; write `<out-dir>/<zip base>.minisig` (0644) and `<out-dir>/<zip base>.blob.json` (0644). Default `--out-dir` is the zip's directory. Refuse to overwrite an existing `.minisig` (exit 1).
 8. Print key ID (hex), signature path, blob path. Exit 0.
 
 - [ ] **Step 1:** Tests with a fake terminal and an ephemeral encrypted key written via `minisign.EncryptKey` into a temp `key_dir` as `minisign-0.28.0.pem`:
-  - happy path → exit 0, `.minisig` verifies, blob has `0ad=0.28.0`;
+  - happy path → exit 0, `.minisig` verifies, blob `dependencies` equals `mod.json`'s, one entry;
+  - merge into a blob holding a valid other-alpha entry over the same bytes → two entries; same blob over different bytes → 2;
+  - key file for `0.28.0` holding a non-trust-store key → 2;
   - `verdict: REPACKAGE` → 2; zip modified after audit → 2; `--alpha 0.0.27` → 2; key dir with only `minisign-0.0.27.pem` → 2;
   - wrong token → 3 and no files written; wrong password → 1, error output does not contain the password;
   - `openTerminal` returning `ErrNoTerminal` → 2; existing `.minisig` → 1.
@@ -205,7 +259,7 @@ Order is fixed, and nothing touching the key happens before step 5:
 
 ---
 
-### Task 8: Cross-compile, real-key smoke test, docs
+### Task 12: Cross-compile, real-key smoke test, docs
 
 **Files:**
 - Modify: `README.md`, `.docs/context.md`, `.superpowers/sdd/02-signing/progress.md`
@@ -219,6 +273,7 @@ Order is fixed, and nothing touching the key happens before step 5:
 
 ## Self-Review
 
-- **Spec coverage:** §12 inputs/key/alpha/password/streaming/local verify/confirmation/per-OS terminal → Tasks 2–7; §13 blob shape → Task 5 (publishing stays in phase 04); §16 secrets → Global Constraints + Task 4/7 tests; §17 sign→verify, mismatch refusal, C cross-check, pty approval → Tasks 3, 5, 6, 7.
+- **Spec coverage:** §12 inputs/key/alpha/password/streaming/local verify/confirmation/per-OS terminal → Tasks 2–6, 11; §13 blob shape and per-alpha merge (ADR 0013) → Tasks 2, 7, 9 (publishing stays in phase 04); §16 secrets → Global Constraints + Task 4/7 tests; §17 sign→verify, mismatch refusal, C cross-check, pty approval → Tasks 4, 6, 10, 11.
 - **Deferred:** manager upload of the artifact and signature records (phase 03/04), queue-record alpha cross-check (phase 03, needs the manager), Windows real-hardware approval smoke test (ADR 0012; tracked in design §19).
-- **Choices made here, flag in review:** trusted-comment format; `<zip>.minisig` + `<zip>.blob.json` filenames; exit codes `2`/`3` for sign; `auditor` config key; quote-aware splitter instead of a shell for `vault_cmd`.
+- **Choices made here, flag in review:** C-style trusted comment (auditor recorded by manager instead); `<zip>.minisig` + `<zip>.blob.json` filenames; exit codes `2`/`3` for sign; quote-aware splitter instead of a shell for `vault_cmd`; `0.0.23` maps to both a23 and a23b keys.
+- **Revised 2026-10-24** after a real cross-alpha blob and engine source showed one signature per alpha and `mod.json` dependencies (ADR 0013).

@@ -1,6 +1,6 @@
 # 0010 — `dependencies` from key alpha, not mod.json
 
-Status: accepted
+Status: superseded by [0013](0013-blob-per-alpha-signatures.md)
 
 ## Context
 

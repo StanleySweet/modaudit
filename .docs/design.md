@@ -257,14 +257,17 @@ Manager builds the blob:
 
 ```json
 {
-  "dependencies": ["0ad=0.28.0"],
-  "minisigs": ["untrusted comment: …\nRW…\n…"]
+  "dependencies": ["0ad"],
+  "minisigs": ["untrusted comment: …\nRU…\ntrusted comment: …\n…", "…"]
 }
 ```
 
-`dependencies` comes from the signing key's alpha, because `mod.json` has no
-engine tag. The mod's own `mod.json` dependencies are recorded separately as
-metadata and shown to the signer, never substituted into the blob.
+`dependencies` is the `mod.json` `dependencies` array, verbatim; the engine
+only displays it. `minisigs` holds one prehashed signature per alpha key; the
+engine uses the entry whose key number matches its public key. Most mods carry
+only the current alpha's signature; cross-alpha mods keep older alphas'
+signatures over the same bytes. The CLI builds and validates the blob, the
+manager re-validates it against the trust store. See ADR 0013 (supersedes 0010).
 
 Bytes at publish time: the CLI uploads the exact audited artifact to the
 manager (`POST /api/audits/{id}/artifact`), which hashes it and refuses if the

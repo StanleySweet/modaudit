@@ -14,6 +14,8 @@ accepted decision; supersede it with a new one and link both ways.
 | [0007](0007-archivebuild-always.md) | archivebuild-compress on every repackage |
 | [0008](0008-key-custody.md) | Encrypted keys stay off the server |
 | [0009](0009-queued-comments.md) | Comments are queued drafts, human-approved |
-| [0010](0010-metadata-dependencies.md) | `dependencies` from key alpha, not mod.json |
+| [0010](0010-metadata-dependencies.md) | `dependencies` from key alpha, not mod.json (superseded by 0013) |
 | [0011](0011-manager-api.md) | Auditor role and scoped API key |
 | [0012](0012-multi-machine-signing.md) | Signing on macOS, Linux and Windows |
+| [0013](0013-blob-per-alpha-signatures.md) | Blob holds one signature per alpha; `dependencies` from mod.json |
+| [0014](0014-sign-in-place-terminal-review.md) | Sign in place; one terminal review per mod |
