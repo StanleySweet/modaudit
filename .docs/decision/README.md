@@ -19,3 +19,4 @@ accepted decision; supersede it with a new one and link both ways.
 | [0012](0012-multi-machine-signing.md) | Signing on macOS, Linux and Windows |
 | [0013](0013-blob-per-alpha-signatures.md) | Blob holds one signature per alpha; `dependencies` from mod.json |
 | [0014](0014-sign-in-place-terminal-review.md) | Sign in place; one terminal review per mod |
+| [0015](0015-outdated-unreleased-verdicts.md) | OUTDATED and UNRELEASED verdicts |

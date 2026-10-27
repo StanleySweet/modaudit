@@ -88,6 +88,8 @@ var commentText = map[string]string{
 	"MODJSON_NAME_MISMATCH":  "mod.json name does not match the mod identifier.",
 	"MODJSON_VERSION_FORMAT": "mod.json version must be dotted numeric (e.g. 1.2 or 1.2.3).",
 	"COMPAT_IGNORE_FLAG":     "mod.json sets ignoreInCompatibilityChecks but the mod changes simulation/ files. Simulation changes make players with different mods go out of sync and can be used to cheat, so the flag is only allowed for mods that do not affect gameplay (GUI, art, translations). Remove the flag or the simulation changes.",
+	"ENGINE_OUTDATED":        "mod.json dependencies exclude the alpha currently being signed.",
+	"ENGINE_UNRELEASED":      "mod.json dependencies require an engine that is not released yet.",
 	"COMPAT_IGNORE_FLAG_SET": "mod.json sets ignoreInCompatibilityChecks; a reviewer checks the mod gives no unfair advantage in multiplayer.",
 	"SCRIPT_EVAL":            "Script uses eval/Function/string-based setTimeout.",
 	"SCRIPT_CRASH":           "Script calls Engine.Crash().",

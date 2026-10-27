@@ -5,129 +5,62 @@ import (
 	"strings"
 )
 
-// EngineAdmits checks if alpha is admitted by deps.
+// EngineAdmits reports whether alpha satisfies every 0ad constraint in deps;
+// other mods' dependencies are ignored, and no 0ad constraint admits anything.
 func EngineAdmits(deps []string, alpha string) bool {
+	return EngineGap(deps, alpha) == ""
+}
+
+// EngineGap returns "" when deps admit alpha, "outdated" when a 0ad upper
+// bound excludes it, and "unreleased" when a 0ad lower bound is above it.
+func EngineGap(deps []string, alpha string) string {
 	if alpha == "" {
-		return true
+		return ""
 	}
+	gap := ""
 	for _, d := range deps {
-		if admitsOne(d, alpha) {
-			return true
+		op, ver, ok := engineConstraint(d)
+		if !ok {
+			continue
 		}
-	}
-	// if no 0ad dep found, engine allows? but we need to check entries starting with 0ad
-	if len(deps) == 0 {
-		return true
-	}
-	// check all entries - if any 0ad entry exists, it must admit; if only other deps, different rule
-	// but per spec only entries whose name before operator is 0ad checked; bare 0ad admits
-	// if deps don't contain 0ad, return true?
-	has0ad := false
-	for _, d := range deps {
-		if strings.HasPrefix(d, "0ad") {
-			has0ad = true
-			break
+		c := CompareVersionStrings(alpha, ver)
+		var admitted bool
+		switch op {
+		case "<=":
+			admitted = c <= 0
+		case "<":
+			admitted = c < 0
+		case ">=":
+			admitted = c >= 0
+		case ">":
+			admitted = c > 0
+		default: // "="
+			admitted = c == 0
 		}
-	}
-	if !has0ad {
-		return true
-	}
-	// find first 0ad dep
-	for _, d := range deps {
-		if strings.HasPrefix(d, "0ad") {
-			return admitsOne(d, alpha)
+		if admitted {
+			continue
 		}
+		if op == "<" || op == "<=" || (op == "=" && c > 0) {
+			return "outdated" // an upper bound excludes alpha
+		}
+		gap = "unreleased"
 	}
-	return true
+	return gap
 }
 
-func admitsOne(dep, alpha string) bool {
-	// bare 0ad admits
-	if dep == "0ad" {
-		return true
+// engineConstraint parses "0ad<op><version>"; a bare "0ad" has no constraint.
+func engineConstraint(dep string) (op, ver string, ok bool) {
+	dep = strings.TrimSpace(dep)
+	rest, found := strings.CutPrefix(dep, "0ad")
+	if !found || rest == "" {
+		return "", "", false
 	}
-	// operators in order: <= >= = < >
-	// try <=
-	if strings.Contains(dep, "<=") {
-		parts := strings.Split(dep, "<=")
-		if len(parts) == 2 && strings.TrimSpace(parts[0]) == "0ad" {
-			return cmp(le(parts[1], alpha))
+	for _, o := range []string{"<=", ">=", "<", ">", "="} {
+		if v, found := strings.CutPrefix(rest, o); found {
+			return o, strings.TrimSpace(v), true
 		}
 	}
-	if strings.Contains(dep, ">=") {
-		parts := strings.Split(dep, ">=")
-		if len(parts) == 2 && strings.TrimSpace(parts[0]) == "0ad" {
-			return cmp(ge(parts[1], alpha))
-		}
-	}
-	if strings.Contains(dep, "=") && !strings.Contains(dep, "<=") && !strings.Contains(dep, ">=") {
-		parts := strings.Split(dep, "=")
-		if len(parts) == 2 && strings.TrimSpace(parts[0]) == "0ad" {
-			return cmp(eq(parts[1], alpha))
-		}
-	}
-	if strings.Contains(dep, "<") && !strings.Contains(dep, "<=") {
-		parts := strings.Split(dep, "<")
-		if len(parts) == 2 && strings.TrimSpace(parts[0]) == "0ad" {
-			return cmp(lt(parts[1], alpha))
-		}
-	}
-	if strings.Contains(dep, ">") && !strings.Contains(dep, ">=") {
-		parts := strings.Split(dep, ">")
-		if len(parts) == 2 && strings.TrimSpace(parts[0]) == "0ad" {
-			return cmp(gt(parts[1], alpha))
-		}
-	}
-	return true
-}
-
-type cmpRes int
-
-const (
-	cmpLess cmpRes = -1
-	cmpEq   cmpRes = 0
-	cmpGt   cmpRes = 1
-)
-
-func le(req, have string) cmpRes {
-	// have <= req?
-	if CompareVersionStrings(strings.TrimSpace(have), strings.TrimSpace(req)) <= 0 {
-		return cmpEq
-	}
-	return cmpLess
-}
-
-func ge(req, have string) cmpRes {
-	// have >= req?
-	if CompareVersionStrings(strings.TrimSpace(have), strings.TrimSpace(req)) >= 0 {
-		return cmpEq
-	}
-	return cmpLess
-}
-
-func eq(req, have string) cmpRes {
-	if CompareVersionStrings(strings.TrimSpace(req), strings.TrimSpace(have)) == 0 {
-		return cmpEq
-	}
-	return cmpLess
-}
-
-func lt(req, have string) cmpRes {
-	if CompareVersionStrings(strings.TrimSpace(have), strings.TrimSpace(req)) < 0 {
-		return cmpEq
-	}
-	return cmpLess
-}
-
-func gt(req, have string) cmpRes {
-	if CompareVersionStrings(strings.TrimSpace(have), strings.TrimSpace(req)) > 0 {
-		return cmpEq
-	}
-	return cmpLess
-}
-
-func cmp(r cmpRes) bool {
-	return r == cmpEq
+	return "", "", false // another mod whose name starts with 0ad
 }
 
 // CompareVersionStrings compares versions like engine does.

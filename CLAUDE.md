@@ -31,7 +31,7 @@ Go module `github.com/stan/modaudit`. Phase 1 is the offline, deterministic audi
   1. `Inventory` streams the zip once into `Scan.Entries` (hash, size, `Kind`). Content is never retained. Cap violations set `Scan.Aborted` and short-circuit to `REFUSE`.
   2. `LoadScriptBodies` re-reads only `.js` entries, capped at `MaxScriptBytes`.
   3. Fixed rule order: `rulesArchive`, `rulesLayout`, `rulesModJSON`, `rulesScript`, `rulesAsset`, `rulesPackaging`. Each file `rules_*.go` appends `Finding`s via `Scan.AddFinding(code, severity, file, detail)`.
-  4. Findings sorted deterministically; `VerdictOf` maps them: any blocker or abort → `REFUSE`; `BUNDLE_BUDGET_EXCEEDED` → `NEEDS_HUMAN`; `PackagingIssues` → `REPACKAGE`; else `SIGN`.
+  4. Findings sorted deterministically; `VerdictOf` maps them: abort → `REFUSE`; `ENGINE_OUTDATED`/`ENGINE_UNRELEASED` → `OUTDATED`/`UNRELEASED` (ADR 0015); any blocker → `REFUSE`; `BUNDLE_BUDGET_EXCEEDED` → `NEEDS_HUMAN`; `PackagingIssues` → `REPACKAGE`; else `SIGN`.
 - `internal/report`: builds and serialises the JSON report from a `Scan`, plus `Bullets` for comment drafts generated from rule codes.
 - `internal/bundle`: changed scripts (vs a baseline manifest) for LLM review; over cap returns `ErrBudget`, never truncates.
 - `cmd/modaudit`: `run(args) int` is the testable entry; `audit` turns `ErrBudget` into `BUNDLE_BUDGET_EXCEEDED` (`NEEDS_HUMAN`).
@@ -41,7 +41,7 @@ Go module `github.com/stan/modaudit`. Phase 1 is the offline, deterministic audi
 - Streaming only: never extract a zip to disk, never load a whole archive in memory. Rules touch nothing beyond the zip.
 - Deterministic output: stable ordering, no timestamps or absolute paths in reports.
 - Rule codes are stable strings; comments derive from codes, never from model text.
-- Exit codes: `0` SIGN, `2` REFUSE, `3` NEEDS_HUMAN, `4` REPACKAGE, `1` tool error.
+- Exit codes: `0` SIGN, `2` REFUSE, `3` NEEDS_HUMAN, `4` REPACKAGE, `5` OUTDATED, `6` UNRELEASED, `1` tool error.
 - Normalise entry names (`NormalizeName`: `..\`, non-UTF-8) before traversal checks. Duplicate names with different content are blockers.
 - A non-numeric `mod.json` version is a blocker: repackage needs a patch bump and must not guess.
 

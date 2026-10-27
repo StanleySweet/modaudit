@@ -70,6 +70,9 @@ const (
 	VerdictRepackage  Verdict = "REPACKAGE"
 	VerdictRefuse     Verdict = "REFUSE"
 	VerdictNeedsHuman Verdict = "NEEDS_HUMAN"
+	// No key in use can sign it: mod.json pins an older or a future engine.
+	VerdictOutdated   Verdict = "OUTDATED"
+	VerdictUnreleased Verdict = "UNRELEASED"
 )
 
 // Scan is the result of reading and auditing one archive.

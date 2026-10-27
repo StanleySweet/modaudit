@@ -94,9 +94,10 @@ func rulesModJSON(s *Scan) {
 		}
 	}
 	// engine dependency check
-	if s.TargetAlpha != "" {
-		if !EngineAdmits(info.Dependencies, s.TargetAlpha) {
-			s.AddFinding("MODJSON_ENGINE_MISMATCH", SeverityBlocker, "mod.json", "engine dependency does not admit target alpha")
-		}
+	switch EngineGap(info.Dependencies, s.TargetAlpha) {
+	case "outdated":
+		s.AddFinding("ENGINE_OUTDATED", SeverityInfo, "mod.json", "dependencies "+strings.Join(info.Dependencies, ", ")+" exclude "+s.TargetAlpha+"; only "+s.TargetAlpha+" is signed")
+	case "unreleased":
+		s.AddFinding("ENGINE_UNRELEASED", SeverityInfo, "mod.json", "dependencies "+strings.Join(info.Dependencies, ", ")+" need an engine newer than "+s.TargetAlpha)
 	}
 }

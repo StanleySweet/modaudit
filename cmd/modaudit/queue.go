@@ -118,7 +118,7 @@ func runProcessQueue(args []string, deps queueDeps) int {
 			continue
 		}
 
-		s, err := audit.Run(ctx, zipPath, audit.Options{Slug: "", Limits: audit.Limits(cfg.Limits), Baseline: nil})
+		s, err := audit.Run(ctx, zipPath, audit.Options{Limits: audit.Limits(cfg.Limits), TargetAlpha: cfg.TargetAlpha})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "audit:", err)
 			if *once {

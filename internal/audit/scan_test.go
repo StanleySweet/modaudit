@@ -77,3 +77,14 @@ func TestRunAbortReportsCode(t *testing.T) {
 		t.Fatalf("verdict %s findings %v", s.Verdict, s.Findings)
 	}
 }
+
+func TestRunOutdatedEngineIsParked(t *testing.T) {
+	p := writeZip(t, zipEntry{name: "mod.json", body: `{"name":"m","version":"1.0","label":"M","dependencies":["0ad=0.0.23"]}`}, zipEntry{name: "a.zip", body: "x"})
+	s, err := Run(context.Background(), p, Options{Limits: testLimits(), TargetAlpha: "0.28.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Verdict != VerdictOutdated || !hasCode(s.Findings, "ENGINE_OUTDATED") {
+		t.Fatalf("verdict %s findings %v", s.Verdict, s.Findings)
+	}
+}

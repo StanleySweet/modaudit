@@ -59,6 +59,15 @@ func VerdictOf(s *Scan) Verdict {
 	if s.Aborted {
 		return VerdictRefuse
 	}
+	// Unsignable mods are parked before blockers: a refusal comment would be noise
+	for _, f := range s.Findings {
+		switch f.Code {
+		case "ENGINE_OUTDATED":
+			return VerdictOutdated
+		case "ENGINE_UNRELEASED":
+			return VerdictUnreleased
+		}
+	}
 	if hasBlocker(s) {
 		return VerdictRefuse
 	}

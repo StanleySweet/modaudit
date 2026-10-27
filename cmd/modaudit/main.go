@@ -28,6 +28,8 @@ var exitCodes = map[audit.Verdict]int{
 	audit.VerdictRefuse:     2,
 	audit.VerdictNeedsHuman: 3,
 	audit.VerdictRepackage:  4,
+	audit.VerdictOutdated:   5,
+	audit.VerdictUnreleased: 6,
 }
 
 func main() {
@@ -84,7 +86,7 @@ func runAudit(args []string) (int, error) {
 	}
 
 	ctx := context.Background()
-	s, err := audit.Run(ctx, *zipPath, audit.Options{Slug: *slug, Limits: audit.Limits(cfg.Limits), Baseline: baseline})
+	s, err := audit.Run(ctx, *zipPath, audit.Options{Slug: *slug, Limits: audit.Limits(cfg.Limits), Baseline: baseline, TargetAlpha: cfg.TargetAlpha})
 	if err != nil {
 		return 0, err
 	}
