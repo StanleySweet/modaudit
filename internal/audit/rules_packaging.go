@@ -64,8 +64,10 @@ func rulesPackaging(s *Scan) {
 		if !inCompileDir {
 			continue
 		}
+		// archivebuild (0.28) writes foo.xml.cached.xmb; foo.xmb is kept for older layouts
 		xmb := strings.TrimSuffix(norm, ".xml") + ".xmb"
-		if !names[xmb] && !names[strings.ToLower(xmb)] {
+		cached := norm + ".cached.xmb"
+		if !names[xmb] && !names[strings.ToLower(xmb)] && !names[cached] && !names[strings.ToLower(cached)] {
 			s.AddFinding("PACKAGE_MISSING_XMB", SeverityWarn, e.Name,
 				"simulation template XML has no compiled .xmb counterpart")
 		}

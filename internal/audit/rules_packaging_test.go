@@ -44,3 +44,15 @@ func TestPackagingIssuesIgnoresBlockers(t *testing.T) {
 		t.Fatal("blocker counted as packaging")
 	}
 }
+
+func TestXMLWithArchivebuildCacheIsPackaged(t *testing.T) {
+	s := &Scan{Entries: []Entry{
+		{Name: "mod.json"},
+		{Name: "simulation/templates/a.xml"},
+		{Name: "simulation/templates/a.xml.cached.xmb"},
+	}}
+	rulesPackaging(s)
+	if hasCode(s.Findings, "PACKAGE_MISSING_XMB") {
+		t.Fatal(s.Findings)
+	}
+}
