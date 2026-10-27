@@ -23,6 +23,7 @@ func Run(ctx context.Context, zipPath string, opts Options) (*Scan, error) {
 	s.Limits = lim
 	s.TargetAlpha = opts.TargetAlpha
 	if s.Aborted {
+		s.AddFinding(s.AbortCode, SeverityBlocker, "", "audit stopped at a hard cap")
 		s.Verdict = VerdictRefuse
 		return s, nil
 	}

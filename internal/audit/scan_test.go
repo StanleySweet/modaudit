@@ -64,3 +64,16 @@ func TestRunCleanModSigns(t *testing.T) {
 func testLimits() Limits {
 	return Limits{MaxEntries: 10000, MaxUncompressed: 2 << 30, MaxRatio: 100, MaxFileSize: 64 << 20, MaxScriptBytes: 2 << 20, MaxBundleBytes: 200 * 1024, MaxBundleFiles: 50}
 }
+
+func TestRunAbortReportsCode(t *testing.T) {
+	lim := testLimits()
+	lim.MaxEntries = 1
+	p := writeZip(t, zipEntry{name: "a.txt", body: "a"}, zipEntry{name: "b.txt", body: "b"})
+	s, err := Run(context.Background(), p, Options{Limits: lim})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Verdict != VerdictRefuse || !hasCode(s.Findings, "ZIP_TOO_MANY_ENTRIES") {
+		t.Fatalf("verdict %s findings %v", s.Verdict, s.Findings)
+	}
+}
