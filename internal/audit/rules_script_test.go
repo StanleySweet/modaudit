@@ -30,6 +30,18 @@ func TestScriptSignals(t *testing.T) {
 	if !info.Has("SCRIPT_OBFUSCATED") {
 		t.Fatalf("obfuscation not detected: %+v", info)
 	}
+
+	// base64 wrapped at 76 columns
+	wrapped := strings.Repeat("\""+strings.Repeat("QUJD", 19)+"\" +\n", 120)
+	if info := analyzeScript("a.js", []byte("var a="+wrapped+"\"\";")); !info.Has("SCRIPT_OBFUSCATED") {
+		t.Fatalf("wrapped base64 not detected: %+v", info)
+	}
+
+	// long ordinary code is not obfuscation
+	code := strings.Repeat("function updateModList(mods) {\n\tfor (let mod of mods)\n\t\tEngine.GetGUIObjectByName(\"modList\").list.push(mod.name);\n}\n", 400)
+	if info := analyzeScript("a.js", []byte(code)); info.Has("SCRIPT_OBFUSCATED") {
+		t.Fatalf("plain code flagged as obfuscated")
+	}
 }
 
 func TestBenignScriptHasNoSignals(t *testing.T) {

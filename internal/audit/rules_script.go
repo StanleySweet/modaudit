@@ -98,12 +98,19 @@ func isObfuscated(text string) bool {
 	return false
 }
 
+// countB64 counts characters inside unbroken base64-alphabet runs of 64+;
+// ordinary code breaks runs at spaces, dots and brackets.
 func countB64(s string) int {
-	n := 0
-	for _, c := range s {
+	n, run := 0, 0
+	for _, c := range s + " " {
 		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=' {
-			n++
+			run++
+			continue
 		}
+		if run >= 64 {
+			n += run
+		}
+		run = 0
 	}
 	return n
 }
