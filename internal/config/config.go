@@ -35,7 +35,7 @@ type Config struct {
 func Default() Config {
 	return Config{
 		Limits: Limits{
-			MaxEntries:      10000,
+			MaxEntries:      100000,
 			MaxUncompressed: 2 << 30,
 			MaxRatio:        100,
 			MaxFileSize:     64 << 20,

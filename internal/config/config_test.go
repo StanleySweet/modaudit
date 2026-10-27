@@ -33,7 +33,7 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Limits.MaxEntries != 10000 {
+	if cfg.Limits.MaxEntries != 100000 {
 		t.Fatalf("entries = %d", cfg.Limits.MaxEntries)
 	}
 }

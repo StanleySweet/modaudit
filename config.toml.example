@@ -1,5 +1,5 @@
 # Local settings for modaudit. Secrets are referenced, never inlined.
-manager_url = "https://mod-io-manager.wildfiregames.ovh"
+manager_url = "https://mod-io-manager-api.wildfiregames.ovh"
 target_alpha = "0.28.0"
 key_dir = ""
 pyrogenesis = ""
@@ -12,7 +12,7 @@ api_key_cmd = ""
 vault_cmd = ""
 
 [limits]
-max_entries = 10000
+max_entries = 100000
 max_uncompressed = 2147483648
 max_ratio = 100
 max_file_size = 67108864

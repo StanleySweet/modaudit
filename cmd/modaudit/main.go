@@ -17,8 +17,10 @@ import (
 const usage = `usage: modaudit <command> [flags]
 
 commands:
-  audit   audit a mod zip and write a report
-  sign    sign an audited zip
+  audit         audit a mod zip and write a report
+  sign          sign an audited zip
+  process-queue poll manager queue and process tasks
+  review        approve audited mods: sign and publish, comment, or dismiss
 `
 
 var exitCodes = map[audit.Verdict]int{
@@ -47,6 +49,10 @@ func run(args []string) int {
 		return code
 	case "sign":
 		return runSign(args[1:], signDeps{})
+	case "process-queue":
+		return runProcessQueue(args[1:], queueDeps{})
+	case "review":
+		return runReview(args[1:], reviewDeps{})
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", args[0], usage)
 		return 1
