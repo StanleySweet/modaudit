@@ -18,6 +18,7 @@ import (
 	"github.com/stan/modaudit/internal/config"
 	"github.com/stan/modaudit/internal/keys"
 	"github.com/stan/modaudit/internal/manager"
+	"github.com/stan/modaudit/internal/repackage"
 	"github.com/stan/modaudit/internal/signer"
 	"github.com/stan/modaudit/internal/trust"
 )
@@ -87,9 +88,12 @@ func runReview(args []string, deps reviewDeps) int {
 			term.Println("  previous attempt failed: " + rv.PreviousError)
 		}
 		var err error
-		if rv.Verdict == string(audit.VerdictSign) {
+		switch rv.Verdict {
+		case string(audit.VerdictSign):
 			err = r.sign(rv)
-		} else {
+		case string(audit.VerdictRepackage):
+			err = r.repackage(rv)
+		default:
 			err = r.other(rv)
 		}
 		if err != nil {
@@ -175,23 +179,12 @@ func (r *reviewer) sign(rv manager.Review) error {
 	if err != nil {
 		return err
 	}
-	tmpDir, err := os.MkdirTemp("", "modaudit-review-")
+	zipPath, tmpDir, err := r.download(rv)
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
-	zipPath := filepath.Join(tmpDir, "mod.zip")
-	r.term.Println(fmt.Sprintf("  downloading %d MB", rv.FileSize>>20))
-	if err := r.client.DownloadMod(r.ctx, rv.DownloadURL, zipPath, rv.MD5); err != nil {
-		return err
-	}
-	sha, err := sha256File(zipPath)
-	if err != nil {
-		return err
-	}
-	if !strings.EqualFold(sha, rv.ZipSHA256) {
-		return errors.New("downloaded zip is not the audited zip")
-	}
+	sha := strings.ToLower(rv.ZipSHA256)
 
 	summary := []string{
 		"  name: " + rv.ModJSON.Name + " version: " + rv.ModJSON.Version,
@@ -209,10 +202,23 @@ func (r *reviewer) sign(rv manager.Review) error {
 		return nil
 	}
 
+	mb, err := r.signBlob(k, zipPath, sha, rv.ModJSON.Dependencies)
+	if err != nil {
+		return err
+	}
+	if err := r.client.Publish(r.ctx, rv.TaskID, mb); err != nil {
+		return err
+	}
+	r.term.Println("  signed; the manager verifies it and writes it to mod.io in the background")
+	return nil
+}
+
+// signBlob signs zipPath and returns the metadata_blob; the key is decrypted once per session.
+func (r *reviewer) signBlob(k keys.Key, zipPath, sha string, deps []string) ([]byte, error) {
 	if r.key == nil {
 		pw, err := approval.Password(r.term, r.cfg.VaultCmd, filepath.Base(k.Path))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		keyRaw, err := os.ReadFile(k.Path)
 		if err == nil {
@@ -225,27 +231,112 @@ func (r *reviewer) sign(rv manager.Review) error {
 		}
 		if err != nil {
 			r.key = nil
-			return errors.New("cannot decrypt " + filepath.Base(k.Path))
+			return nil, errors.New("cannot decrypt " + filepath.Base(k.Path))
 		}
 	}
-
-	res, err := signer.Sign(signer.Request{ZipPath: zipPath, WantSHA256: sha, Alpha: alpha, Key: *r.key})
+	res, err := signer.Sign(signer.Request{ZipPath: zipPath, WantSHA256: sha, Alpha: r.cfg.TargetAlpha, Key: *r.key})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Queued versions are unsigned, so there are no earlier signatures to keep
-	newBlob, err := blob.Merge(blob.Blob{}, rv.ModJSON.Dependencies, res.Signature, zipPath)
+	newBlob, err := blob.Merge(blob.Blob{}, deps, res.Signature, zipPath)
+	if err != nil {
+		return nil, err
+	}
+	return blob.Marshal(newBlob)
+}
+
+// download fetches the reviewed modfile into a new temp dir and checks it is the audited zip.
+func (r *reviewer) download(rv manager.Review) (zipPath, tmpDir string, err error) {
+	tmpDir, err = os.MkdirTemp("", "modaudit-review-")
+	if err != nil {
+		return "", "", err
+	}
+	zipPath = filepath.Join(tmpDir, "mod.zip")
+	r.term.Println(fmt.Sprintf("  downloading %d MB", rv.FileSize>>20))
+	if err := r.client.DownloadMod(r.ctx, rv.DownloadURL, zipPath, rv.MD5); err != nil {
+		os.RemoveAll(tmpDir)
+		return "", "", err
+	}
+	sha, err := sha256File(zipPath)
+	if err == nil && !strings.EqualFold(sha, rv.ZipSHA256) {
+		err = errors.New("downloaded zip is not the audited zip")
+	}
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return "", "", err
+	}
+	return zipPath, tmpDir, nil
+}
+
+func (r *reviewer) repackage(rv manager.Review) error {
+	alpha := r.cfg.TargetAlpha
+	if r.cfg.KeyDir == "" || alpha == "" {
+		return errors.New("set key_dir and target_alpha in config.toml to repackage")
+	}
+	if !audit.EngineAdmits(rv.ModJSON.Dependencies, alpha) {
+		return fmt.Errorf("mod.json dependencies %v do not admit %s", rv.ModJSON.Dependencies, alpha)
+	}
+	c, err := r.choose("  [r]epackage, [d]ismiss, s[K]ip: ", "rdk", 'k')
+	if err != nil || c == 'k' {
+		return err
+	}
+	if c == 'd' {
+		if err := r.client.Dismiss(r.ctx, rv.TaskID); err != nil {
+			return err
+		}
+		r.term.Println("  dismissed")
+		return nil
+	}
+	k, err := keys.Select(r.cfg.KeyDir, alpha)
 	if err != nil {
 		return err
 	}
-	mb, err := blob.Marshal(newBlob)
+	zipPath, tmpDir, err := r.download(rv)
 	if err != nil {
 		return err
 	}
-	if err := r.client.Publish(r.ctx, rv.TaskID, mb); err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	r.term.Println("  rebuilding with pyrogenesis -archivebuild")
+	res, err := repackage.Rebuild(r.ctx, zipPath, repackage.Options{
+		Pyrogenesis: r.cfg.Pyrogenesis,
+		Flags:       r.cfg.ArchivebuildFlags,
+		Alpha:       alpha,
+		Limits:      audit.Limits(r.cfg.Limits),
+		WorkDir:     tmpDir,
+	})
+	if err != nil {
 		return err
 	}
-	r.term.Println("  signed; the manager verifies it and writes it to mod.io in the background")
+
+	summary := []string{
+		"  name: " + rv.ModJSON.Name + " version: " + res.OldVersion + " -> " + res.NewVersion,
+		fmt.Sprintf("  added %d compiled file(s), nothing else changed; re-audit: SIGN", len(res.Added)),
+		"  rebuilt sha256: " + res.SHA256,
+		"  alpha: " + alpha + " key: " + filepath.Base(k.Path),
+		"  This signs the rebuilt zip, uploads it to mod.io as a new file and posts a repackage comment.",
+	}
+	ok, err := approval.Confirm(r.term, summary, res.SHA256[:12])
+	if err != nil {
+		return err
+	}
+	if !ok {
+		r.term.Println("  token mismatch, skipped")
+		return nil
+	}
+	mb, err := r.signBlob(k, res.ZipPath, res.SHA256, rv.ModJSON.Dependencies)
+	if err != nil {
+		return err
+	}
+	r.term.Println("  uploading to the manager")
+	if err := r.client.Repackage(r.ctx, rv.TaskID, manager.Repackaged{
+		ZipPath: res.ZipPath, SHA256: res.SHA256, OldVersion: res.OldVersion, NewVersion: res.NewVersion,
+		Added: len(res.Added), MetadataBlob: mb,
+	}); err != nil {
+		return err
+	}
+	r.term.Println("  repackaged; the manager verifies it and uploads it to mod.io in the background")
 	return nil
 }
 

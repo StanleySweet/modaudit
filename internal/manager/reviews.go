@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
 // Review is an audited task waiting for a human decision.
@@ -111,4 +115,56 @@ func (c *Client) do(ctx context.Context, method, path string, body io.Reader, co
 		return nil, fmt.Errorf("%s %s: status %d: %s", method, path, resp.StatusCode, b)
 	}
 	return resp, nil
+}
+
+// Repackaged describes a rebuilt zip for upload.
+type Repackaged struct {
+	ZipPath      string
+	SHA256       string
+	OldVersion   string
+	NewVersion   string
+	Added        int
+	MetadataBlob []byte
+}
+
+// Repackage streams the rebuilt zip to the manager, which re-hashes it, verifies
+// the signatures and uploads it to mod.io as a new modfile.
+func (c *Client) Repackage(ctx context.Context, taskID int64, r Repackaged) error {
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		err := func() error {
+			for k, v := range map[string]string{
+				"metadata_blob":  string(r.MetadataBlob),
+				"old_version":    r.OldVersion,
+				"new_version":    r.NewVersion,
+				"rebuilt_sha256": r.SHA256,
+				"added":          strconv.Itoa(r.Added),
+			} {
+				if err := mw.WriteField(k, v); err != nil {
+					return err
+				}
+			}
+			f, err := os.Open(r.ZipPath)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			part, err := mw.CreateFormFile("filedata", filepath.Base(r.ZipPath))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(part, f); err != nil {
+				return err
+			}
+			return mw.Close()
+		}()
+		pw.CloseWithError(err)
+	}()
+	resp, err := c.do(ctx, "POST", fmt.Sprintf("/api/v1/reviews/%d/repackage", taskID), pr, mw.FormDataContentType())
+	if err != nil {
+		pr.CloseWithError(err)
+		return err
+	}
+	return resp.Body.Close()
 }

@@ -47,6 +47,7 @@ func TestReviewCommentDismissSkip(t *testing.T) {
 				{"task_id": 2, "name": "b", "verdict": "NEEDS_HUMAN"},
 				{"task_id": 3, "name": "c", "verdict": "REFUSE", "comment_draft": "- x"},
 				{"task_id": 4, "name": "d", "verdict": "SIGN"},
+				{"task_id": 5, "name": "e", "verdict": "REPACKAGE"},
 			}})
 			return
 		}
@@ -67,11 +68,12 @@ func TestReviewCommentDismissSkip(t *testing.T) {
 		t.Fatalf("exit %d", code)
 	}
 	want := []string{"GET /api/v1/reviews", "POST /api/v1/reviews/1/comment", "POST /api/v1/reviews/2/dismiss"}
+	// task 5: REPACKAGE without key_dir stops before any prompt or call
 	if strings.Join(calls, "|") != strings.Join(want, "|") {
 		t.Fatalf("calls %v, want %v", calls, want)
 	}
 	out := strings.Join(term.out, "\n")
-	if !strings.Contains(out, "LAYOUT_NO_MODJSON") || !strings.Contains(out, "set key_dir and target_alpha") {
+	if !strings.Contains(out, "LAYOUT_NO_MODJSON") || !strings.Contains(out, "set key_dir and target_alpha in config.toml to sign") || !strings.Contains(out, "set key_dir and target_alpha in config.toml to repackage") {
 		t.Fatalf("output missing findings or sign config error:\n%s", out)
 	}
 }

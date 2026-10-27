@@ -82,3 +82,6 @@ func isJunk(norm string) bool {
 	}
 	return false
 }
+
+// IsJunk reports whether a normalised entry name is an OS, editor or VCS file.
+func IsJunk(norm string) bool { return isJunk(norm) }
