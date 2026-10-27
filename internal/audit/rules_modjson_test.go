@@ -9,7 +9,7 @@ func TestModJSONRules(t *testing.T) {
 		{"bad json", `{"name":"a"`, "MODJSON_INVALID"},
 		{"missing field", `{"version":"1.0"}`, "MODJSON_MISSING_FIELD"},
 		{"bad version", `{"name":"a","version":"banana","label":"A"}`, "MODJSON_VERSION_FORMAT"},
-		{"ignore compat", `{"name":"a","version":"1.0","label":"A","ignoreInCompatibilityChecks":true}`, "COMPAT_IGNORE_FLAG"},
+		{"ignore compat without simulation", `{"name":"a","version":"1.0","label":"A","ignoreInCompatibilityChecks":true}`, "COMPAT_IGNORE_FLAG_SET"},
 		{"name mismatch", `{"name":"wrong","version":"1.0","label":"A"}`, "MODJSON_NAME_MISMATCH"},
 	}
 	for _, c := range cases {
@@ -57,5 +57,20 @@ func TestModJSONNumericOnly(t *testing.T) {
 		if !hasCode(s.Findings, "MODJSON_VERSION_FORMAT") {
 			t.Fatalf("%s: %+v", v, s.Findings)
 		}
+	}
+}
+
+func TestIgnoreCompatWithSimulationIsBlocker(t *testing.T) {
+	s := &Scan{
+		ModJSONRaw: []byte(`{"name":"a","version":"1.0","label":"A","ignoreInCompatibilityChecks":true}`),
+		Entries:    []Entry{{Name: "gui/page.xml"}, {Name: "simulation/components/Foo.js"}},
+	}
+	rulesModJSON(s)
+	f := findCode(s.Findings, "COMPAT_IGNORE_FLAG")
+	if f == nil || f.Severity != SeverityBlocker || f.File != "simulation/components/Foo.js" {
+		t.Fatalf("got %+v", s.Findings)
+	}
+	if hasCode(s.Findings, "COMPAT_IGNORE_FLAG_SET") {
+		t.Fatal("warning should not accompany the blocker")
 	}
 }

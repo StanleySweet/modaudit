@@ -45,7 +45,7 @@ func TestAuditExitCodes(t *testing.T) {
 		t.Fatalf("clean exit = %d", code)
 	}
 
-	bad := fixtureZip(t, `{"name":"m","version":"1.0","label":"M","ignoreInCompatibilityChecks":true}`)
+	bad := fixtureZip(t, `{"name":"m","version":"1.0","label":"M","ignoreInCompatibilityChecks":true}`, "simulation/components/a.js", "var a;")
 	if got := run([]string{"audit", "--zip", bad, "--slug", "m", "--out", out}); got != 2 {
 		t.Fatalf("refuse exit = %d", got)
 	}

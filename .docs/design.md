@@ -139,8 +139,11 @@ nested `.zip`.
 `name` matches queue slug; version format; dependency types. Unknown fields are
 reported, not fatal.
 
-**Compatibility policy**: `ignoreInCompatibilityChecks` present/true is a
-blocker — such mods are refused, not silently accepted.
+**Compatibility policy** (wiki `Mod_Verification_Process`):
+`ignoreInCompatibilityChecks: true` with any `simulation/` file is a blocker
+(`COMPAT_IGNORE_FLAG`: out-of-sync and cheating risk); without simulation files
+it is a warning (`COMPAT_IGNORE_FLAG_SET`) so the reviewer checks for unfair
+advantage, which no deterministic rule can judge.
 
 **Script inventory**: every `.js` under `simulation/`, `gui/`, `maps/` and any
 `*_triggers.js`; `Engine.*` / `Scripting.*` API usage; `Engine.Crash`,

@@ -74,7 +74,19 @@ func rulesModJSON(s *Scan) {
 		s.AddFinding("MODJSON_VERSION_FORMAT", SeverityBlocker, "mod.json", "version must be dotted numeric (e.g. 1.2 or 1.2.3)")
 	}
 	if info.IgnoreCompat {
-		s.AddFinding("COMPAT_IGNORE_FLAG", SeverityBlocker, "mod.json", "ignoreInCompatibilityChecks is not allowed")
+		// Wiki Mod_Verification_Process: the flag is fine for GUI, art or translation mods, never with simulation changes
+		sim := ""
+		for _, e := range s.Entries {
+			if strings.HasPrefix(e.Name, "simulation/") {
+				sim = e.Name
+				break
+			}
+		}
+		if sim != "" {
+			s.AddFinding("COMPAT_IGNORE_FLAG", SeverityBlocker, sim, "ignoreInCompatibilityChecks is set but the mod changes simulation/; players with different simulations go out of sync and could cheat")
+		} else {
+			s.AddFinding("COMPAT_IGNORE_FLAG_SET", SeverityWarn, "mod.json", "ignoreInCompatibilityChecks is set; check the mod gives no unfair advantage (enemy info, automation) and does not touch the GUI compatibility check")
+		}
 	}
 	if s.Slug != "" && info.Name != "" {
 		if !strings.EqualFold(info.Name, s.Slug) {
